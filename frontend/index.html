@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TP Exam Chat</title>
+  <style>
+    body{font-family:Arial;margin:20px;background:#f5f6f8}
+    .app{max-width:720px;margin:auto;background:#fff;padding:16px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.06)}
+    #messages{height:400px;overflow:auto;border:1px solid #eee;padding:8px;border-radius:6px;background:#fafafa}
+    .msg{padding:6px;border-bottom:1px solid #f1f1f1}
+    .meta{font-size:12px;color:#666}
+    .controls{display:flex;gap:8px;margin-top:8px}
+    input,button{padding:8px;border-radius:6px;border:1px solid #ddd;font-size:14px}
+    @media(max-width:480px){#messages{height:300px}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h2>Mini Chat</h2>
+    <div style="margin-bottom:8px">
+      <input id="nick" placeholder="Pseudo" />
+    </div>
+    <div id="messages"></div>
+    <div class="controls">
+      <input id="content" placeholder="Écrire un message..." style="flex:1" />
+      <button id="send">Envoyer</button>
+      <button id="refresh">Refresh</button>
+    </div>
+  </div>
+
+  <script>
+    const BACKEND = "http://127.0.0.1:3000";
+    const API_BASE = BACKEND ? BACKEND.replace(/\/$/,'') : '';
+
+    function api(path){ return (API_BASE || window.location.origin) + path; }
+
+    const msgs = document.getElementById('messages');
+    const nick = document.getElementById('nick');
+    const content = document.getElementById('content');
+    const send = document.getElementById('send');
+    const refresh = document.getElementById('refresh');
+
+    async function loadMessages(){
+      try {
+        const res = await fetch(api('/api/messages'));
+        const data = await res.json();
+        render(data);
+      } catch(e) {
+        msgs.innerHTML = '<div style="color:red">Erreur récupération messages</div>';
+      }
+    }
+
+    function render(list){
+      msgs.innerHTML = '';
+      if(!list || list.length===0){ msgs.innerHTML = '<div style="color:#666">Aucun message</div>'; return; }
+      list.slice().reverse().forEach(m=>{
+        const d = document.createElement('div'); d.className='msg';
+        d.innerHTML = `<div><strong>${escapeHtml(m.author)}</strong> <span class="meta">— ${new Date(m.time).toLocaleString()}</span></div><div>${escapeHtml(m.content)}</div>`;
+        msgs.appendChild(d);
+      });
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    async function sendMessage(){
+      const author = (nick.value||'Anonyme').trim();
+      const text = content.value.trim();
+      if(!text) return;
+      send.disabled = true;
+      try {
+        await fetch(api('/api/messages'), {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({author, content: text})
+        });
+        content.value = '';
+        await loadMessages();
+      } catch (e){
+        alert('Échec envoi');
+      } finally { send.disabled=false; }
+    }
+
+    send.addEventListener('click', sendMessage);
+    content.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendMessage(); });
+    refresh.addEventListener('click', loadMessages);
+    setInterval(loadMessages, 4000);
+    loadMessages();
+  </script>
+</body>
+</html>
